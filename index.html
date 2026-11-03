@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>翻译</title>
+<style>
+  :root{
+    --bg:#f2f3f5;
+    --bar:#ffffff;
+    --user:#0b84ff;
+    --bot:#ffffff;
+    --ink:#1c1c1e;
+    --sub:#8a8a8e;
+    --line:#e5e5ea;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    display:flex;flex-direction:column;
+    height:100dvh;
+    overflow:hidden;
+  }
+  /* ===== Header ===== */
+  header{
+    padding-top:calc(var(--safe-top) + 10px);
+    padding-left:12px;padding-right:12px;padding-bottom:10px;
+    background:var(--bar);
+    border-bottom:0.5px solid var(--line);
+    flex:0 0 auto;
+  }
+  .title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .title-row h1{font-size:18px;font-weight:600;margin:0;}
+  .gear{font-size:20px;border:none;background:none;padding:4px 8px;color:var(--sub);cursor:pointer;line-height:1;}
+  .seg{display:flex;background:#e9e9eb;border-radius:10px;padding:2px;gap:2px;}
+  .seg button{
+    flex:1;border:none;background:none;font-size:14px;font-weight:500;
+    color:var(--ink);padding:7px 0;border-radius:8px;cursor:pointer;transition:.15s;
+  }
+  .seg button.on{background:#fff;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .hk-bar{margin-top:8px;display:none;}
+  .hk-bar.show{display:block;}
+  .dir-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
+  .dir-btn{
+    border:0.5px solid var(--line);background:#fff;border-radius:20px;
+    font-size:13px;color:var(--ink);padding:6px 14px;cursor:pointer;font-weight:500;
+  }
+  .dir-btn .arrow{color:var(--user);font-weight:700;}
+  .hint{font-size:12px;color:var(--sub);}
+  /* ===== Chat ===== */
+  main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 12px 8px;}
+  .row{display:flex;margin-bottom:14px;}
+  .row.me{justify-content:flex-end;}
+  .row.bot{justify-content:flex-start;}
+  .bubble{
+    max-width:76%;padding:11px 14px;border-radius:18px;font-size:16px;line-height:1.45;
+    word-wrap:break-word;white-space:pre-wrap;
+  }
+  .row.me .bubble{background:var(--user);color:#fff;border-bottom-right-radius:5px;}
+  .row.bot .bubble{background:var(--bot);color:var(--ink);border:0.5px solid var(--line);border-bottom-left-radius:5px;}
+  .meta{font-size:11px;color:var(--sub);margin:0 4px 4px;display:flex;align-items:center;gap:6px;}
+  .row.me .meta{justify-content:flex-end;}
+  .bot-actions{display:flex;gap:8px;margin:5px 4px 0;}
+  .bot-actions button{
+    border:0.5px solid var(--line);background:#fff;border-radius:14px;font-size:12px;
+    color:var(--sub);padding:4px 12px;cursor:pointer;
+  }
+  .typing{display:inline-flex;gap:4px;align-items:center;padding:4px 2px;}
+  .typing i{width:7px;height:7px;border-radius:50%;background:#c7c7cc;display:inline-block;animation:blink 1.2s infinite both;}
+  .typing i:nth-child(2){animation-delay:.2s;}
+  .typing i:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+  .empty{text-align:center;color:var(--sub);font-size:14px;margin-top:40px;padding:0 24px;}
+  /* ===== Footer ===== */
+  footer{
+    flex:0 0 auto;background:var(--bar);
+    padding:8px 10px calc(var(--safe-bottom) + 8px);
+    border-top:0.5px solid var(--line);
+    display:flex;align-items:flex-end;gap:8px;
+  }
+  .input-wrap{
+    flex:1;background:#f1f1f4;border-radius:18px;padding:8px 14px;
+    display:flex;align-items:center;
+  }
+  textarea{
+    width:100%;border:none;background:none;resize:none;outline:none;
+    font-size:16px;line-height:1.4;max-height:120px;font-family:inherit;color:var(--ink);
+  }
+  .send{
+    flex:0 0 auto;background:var(--user);color:#fff;border:none;border-radius:50%;
+    width:40px;height:40px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .send:disabled{opacity:.4;}
+  /* ===== Modal ===== */
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:50;
+    padding-top:calc(var(--safe-top) + 40px);}
+  .mask.show{display:flex;justify-content:center;}
+  .sheet{background:#fff;width:92%;max-width:440px;border-radius:16px;padding:18px;align-self:flex-start;}
+  .sheet h2{margin:0 0 14px;font-size:18px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:13px;color:var(--sub);margin-bottom:5px;}
+  .field input{width:100%;border:0.5px solid var(--line);border-radius:10px;padding:10px;font-size:15px;outline:none;}
+  .field .note{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.4;}
+  .sheet-btns{display:flex;gap:10px;margin-top:6px;}
+  .sheet-btns button{flex:1;padding:11px;border-radius:12px;font-size:15px;font-weight:600;border:none;cursor:pointer;}
+  .btn-save{background:var(--user);color:#fff;}
+  .btn-cancel{background:#f1f1f4;color:var(--ink);}
+  .btn-clear{background:#fff;color:#ff3b30;border:0.5px solid #ff3b30;}
+</style>
+</head>
+<body>
+<header>
+  <div class="title-row">
+    <h1>翻译</h1>
+    <button class="gear" id="gear" aria-label="设置">⚙</button>
+  </div>
+  <div class="seg" id="tplSeg">
+    <button data-tpl="formal" class="on">正式</button>
+    <button data-tpl="hk">港式</button>
+  </div>
+  <div class="hk-bar" id="hkBar">
+    <div class="seg">
+      <button data-hk="en" class="on">港式英文</button>
+      <button data-hk="yue">港式粤语</button>
+    </div>
+  </div>
+  <div class="dir-row">
+    <button class="dir-btn" id="dirBtn">自动 <span class="arrow">⇄</span></button>
+    <span class="hint" id="dirHint">输入后自动判断方向</span>
+  </div>
+</header>
+
+<main id="chat">
+  <div class="empty" id="empty">对话式翻译 · 输入内容即可翻译<br>正式 / 港式双模板 · 忠实翻译</div>
+</main>
+
+<footer>
+  <div class="input-wrap">
+    <textarea id="input" rows="1" placeholder="输入要翻译的内容…"></textarea>
+  </div>
+  <button class="send" id="send" disabled>↑</button>
+</footer>
+
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h2>港式模板设置（LLM）</h2>
+    <div class="field">
+      <label>API Base URL</label>
+      <input id="cfgBase" placeholder="https://api.openai.com/v1">
+      <div class="note">任意 OpenAI 兼容接口，例如 DeepSeek、本地 Ollama 等。</div>
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input id="cfgKey" type="password" placeholder="sk-...">
+      <div class="note">仅保存在本机 localStorage，不会上传给任何第三方。</div>
+    </div>
+    <div class="field">
+      <label>模型名</label>
+      <input id="cfgModel" placeholder="gpt-4o-mini">
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-clear" id="clearBtn">清空记录</button>
+      <button class="btn-cancel" id="cancelBtn">取消</button>
+      <button class="btn-save" id="saveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var state={tpl:'formal',hk:'en',dir:'auto'};
+  var HIST_KEY='translator_history_v1';
+  var LLM_KEY='translator_llm_v1';
+
+  var HK_EN_PROMPT="You are a professional translator. Render the user's input into authentic, spoken HONG KONG English. Use natural, colloquial HK English: light code-mixing with Cantonese particles (lah, lor, ah, hor, meh) where natural, casual phrasing, the kind heard in Hong Kong daily life and WhatsApp chats. Keep meaning faithful. Output ONLY the translation text, no quotes, no explanations.";
+  var HK_YUE_PROMPT="你是專業翻譯，將用戶輸入翻譯成地道、口語化的香港粵語（繁體中文書寫）。要用自然嘅港式口語（例如：唔係、嘅、咗、啲、佢、哋、咁、喺），似喺 WhatsApp 同朋友傾偈嘅語氣，忠於原意。只輸出譯文，唔好加引號同解釋。";
+
+  var $=function(id){return document.getElementById(id);};
+  var chat=$('chat'),empty=$('empty'),input=$('input'),send=$('send');
+
+  /* ---------- storage ---------- */
+  function loadHist(){try{return JSON.parse(localStorage.getItem(HIST_KEY))||[]}catch(e){return[]}}
+  function saveHist(h){try{localStorage.setItem(HIST_KEY,JSON.stringify(h))}catch(e){}}
+  function getLLM(){try{return JSON.parse(localStorage.getItem(LLM_KEY))||{}}catch(e){return{}}}
+
+  /* ---------- direction ---------- */
+  function detectDir(t){return /[一-鿿]/.test(t)?'zh-en':'en-zh';}
+  function effDir(t){if(state.dir==='zh-en'||state.dir==='en-zh')return state.dir;return detectDir(t);}
+  function dirLabel(d){return d==='zh-en'?'中 → 英':'英 → 中';}
+  function updateDirUI(){
+    var b=$('dirBtn');
+    if(state.dir==='auto'){b.firstChild.nodeValue='自动 ';}
+    else{b.firstChild.nodeValue=dirLabel(state.dir)+' ';}
+  }
+  $('dirBtn').addEventListener('click',function(){
+    state.dir=state.dir==='auto'?'zh-en':state.dir==='zh-en'?'en-zh':'auto';
+    updateDirUI();
+  });
+
+  /* ---------- template seg ---------- */
+  $('tplSeg').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    state.tpl=b.dataset.tpl;
+    [].forEach.call(this.children,function(c){c.classList.toggle('on',c===b)});
+    $('hkBar').classList.toggle('show',state.tpl==='hk');
+  });
+  $('hkBar').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    state.hk=b.dataset.hk;
+    [].forEach.call(this.querySelectorAll('button'),function(c){c.classList.toggle('on',c===b)});
+  });
+
+  /* ---------- translation engines ---------- */
+  function translateFormal(text,from,to){
+    var lp=from==='zh'?'zh-CN|en':'en|zh-CN';
+    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp)
+      .then(function(r){if(!r.ok)throw new Error('net');return r.json();})
+      .then(function(j){
+        var t=j&&j.responseData&&j.responseData.translatedText;
+        if(!t||/MYMEMORY WARNING/i.test(t))throw new Error('quota');
+        return t;
+      })
+      .catch(function(){
+        var cfg=getLLM();
+        if(cfg.key){
+          var sys=from==='zh'
+            ?'Translate the text into natural, formal English suitable for documents and business. Output only the translation.'
+            :'将文本翻译成通顺、正式的中文（简体）。只输出译文。';
+          return translateLLM(text,sys);
+        }
+        throw new Error('免费翻译额度用尽或未联网，可配置 LLM Key 后重试');
+      });
+  }
+  function translateLLM(text,sys){
+    var cfg=getLLM();
+    if(!cfg.key)throw new Error('未配置 LLM Key，请点右上角 ⚙ 设置');
+    var base=(cfg.base||'https://api.openai.com/v1').replace(/\/+$/,'');
+    return fetch(base+'/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+      body:JSON.stringify({model:cfg.model||'gpt-4o-mini',messages:[{role:'system',content:sys},{role:'user',content:text}],temperature:0.7})
+    }).then(function(r){
+      if(!r.ok){return r.text().then(function(t){throw new Error('LLM '+r.status+': '+t.slice(0,180))})}
+      return r.json();
+    }).then(function(j){
+      var t=j&&j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+      t=t?t.trim():'';
+      if(!t)throw new Error('LLM 返回为空');
+      return t;
+    });
+  }
+  function doTranslate(text){
+    var d=effDir(text);
+    if(state.tpl==='formal')return translateFormal(text,d==='zh-en'?'zh':'en',d==='zh-en'?'en':'zh');
+    return translateLLM(text,state.hk==='en'?HK_EN_PROMPT:HK_YUE_PROMPT);
+  }
+
+  /* ---------- render ---------- */
+  function tplMeta(){
+    if(state.tpl==='formal')return '正式 · '+dirLabel(effDir(input.value.trim()||'zh-en'));
+    return (state.hk==='en'?'港式英文':'港式粤语')+' · '+dirLabel(effDir(input.value.trim()||'zh-en'));
+  }
+  function addUserBubble(text){
+    empty.style.display='none';
+    var row=document.createElement('div');row.className='row me';
+    var b=document.createElement('div');b.className='bubble';b.textContent=text;
+    row.appendChild(b);chat.appendChild(row);
+    return row;
+  }
+  function addBotBubble(meta){
+    var wrap=document.createElement('div');
+    var m=document.createElement('div');m.className='meta';m.textContent=meta;
+    var row=document.createElement('div');row.className='row bot';
+    var b=document.createElement('div');b.className='bubble';
+    b.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+    row.appendChild(b);
+    var acts=document.createElement('div');acts.className='bot-actions';
+    var cp=document.createElement('button');cp.textContent='复制';
+    var sh=document.createElement('button');sh.textContent='分享';
+    acts.appendChild(cp);acts.appendChild(sh);
+    wrap.appendChild(m);wrap.appendChild(row);wrap.appendChild(acts);
+    chat.appendChild(wrap);
+    scrollBottom();
+    return {b:b,cp:cp,sh:sh,wrap:wrap};
+  }
+  function scrollBottom(){chat.scrollTop=chat.scrollHeight;}
+
+  function sendText(){
+    var text=input.value.trim();
+    if(!text)return;
+    var meta=tplMeta();
+    addUserBubble(text);
+    var ui=addBotBubble(meta);
+    input.value='';autoGrow();send.disabled=true;
+
+    var hist=loadHist();
+    hist.push({role:'user',text:text,ts:Date.now()});
+    var botRec={role:'bot',text:'',meta:meta,ts:Date.now()};
+    hist.push(botRec);
+
+    doTranslate(text).then(function(res){
+      ui.b.textContent=res;botRec.text=res;saveHist(hist);
+      bindActions(ui,res);
+    }).catch(function(err){
+      ui.b.textContent='⚠ '+err.message;ui.b.style.color='#ff3b30';
+    }).then(scrollBottom);
+  }
+
+  function bindActions(ui,text){
+    ui.cp.onclick=function(){
+      if(navigator.clipboard)navigator.clipboard.writeText(text);
+      ui.cp.textContent='已复制';setTimeout(function(){ui.cp.textContent='复制'},1500);
+    };
+    ui.sh.onclick=function(){
+      if(navigator.share){navigator.share({text:text}).catch(function(){})}
+      else if(navigator.clipboard){navigator.clipboard.writeText(text);ui.sh.textContent='已复制';setTimeout(function(){ui.sh.textContent='分享'},1500);}
+    };
+  }
+
+  /* ---------- restore history ---------- */
+  function restore(){
+    var hist=loadHist();
+    if(!hist.length){return;}
+    empty.style.display='none';
+    hist.forEach(function(item){
+      if(item.role==='user'){addUserBubble(item.text);}
+      else{
+        var ui=addBotBubble(item.meta||'');
+        if(item.text){ui.b.textContent=item.text;bindActions(ui,item.text);}
+        else{ui.b.textContent='（空）';}
+      }
+    });
+    scrollBottom();
+  }
+
+  /* ---------- input handlers ---------- */
+  function autoGrow(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';}
+  input.addEventListener('input',function(){autoGrow();send.disabled=!input.value.trim();});
+  input.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}});
+  send.addEventListener('click',sendText);
+
+  /* ---------- settings ---------- */
+  var mask=$('mask');
+  $('gear').addEventListener('click',function(){
+    var cfg=getLLM();
+    $('cfgBase').value=cfg.base||'';$('cfgKey').value=cfg.key||'';$('cfgModel').value=cfg.model||'';
+    mask.classList.add('show');
+  });
+  $('cancelBtn').addEventListener('click',function(){mask.classList.remove('show');});
+  $('saveBtn').addEventListener('click',function(){
+    var cfg={base:$('cfgBase').value.trim(),key:$('cfgKey').value.trim(),model:$('cfgModel').value.trim()};
+    localStorage.setItem(LLM_KEY,JSON.stringify(cfg));
+    mask.classList.remove('show');
+  });
+  $('clearBtn').addEventListener('click',function(){
+    if(confirm('确定清空所有翻译记录？')){localStorage.removeItem(HIST_KEY);location.reload();}
+  });
+  mask.addEventListener('click',function(e){if(e.target===mask)mask.classList.remove('show');});
+
+  /* ---------- init ---------- */
+  updateDirUI();
+  restore();
+})();
+</script>
+</body>
+</html>
