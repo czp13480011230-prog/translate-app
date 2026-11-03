@@ -153,7 +153,7 @@
     <h2>港式模板设置（LLM）</h2>
     <div class="field">
       <label>API Base URL</label>
-      <input id="cfgBase" placeholder="https://api.openai.com/v1">
+      <input id="cfgBase" placeholder="https://api.deepseek.com/v1">
       <div class="note">任意 OpenAI 兼容接口，例如 DeepSeek、本地 Ollama 等。</div>
     </div>
     <div class="field">
@@ -163,7 +163,7 @@
     </div>
     <div class="field">
       <label>模型名</label>
-      <input id="cfgModel" placeholder="gpt-4o-mini">
+      <input id="cfgModel" placeholder="deepseek-chat">
     </div>
     <div class="sheet-btns">
       <button class="btn-clear" id="clearBtn">清空记录</button>
@@ -179,6 +179,7 @@
   var state={tpl:'formal',hk:'en',dir:'auto'};
   var HIST_KEY='translator_history_v1';
   var LLM_KEY='translator_llm_v1';
+  var hist=loadHist();
 
   var HK_EN_PROMPT="You are a professional translator. Render the user's input into authentic, spoken HONG KONG English. Use natural, colloquial HK English: light code-mixing with Cantonese particles (lah, lor, ah, hor, meh) where natural, casual phrasing, the kind heard in Hong Kong daily life and WhatsApp chats. Keep meaning faithful. Output ONLY the translation text, no quotes, no explanations.";
   var HK_YUE_PROMPT="你是專業翻譯，將用戶輸入翻譯成地道、口語化的香港粵語（繁體中文書寫）。要用自然嘅港式口語（例如：唔係、嘅、咗、啲、佢、哋、咁、喺），似喺 WhatsApp 同朋友傾偈嘅語氣，忠於原意。只輸出譯文，唔好加引號同解釋。";
@@ -219,16 +220,28 @@
   });
 
   /* ---------- translation engines ---------- */
+  function fetchWithTimeout(url,opts,ms){
+    var ctrl=new AbortController();
+    var id=setTimeout(function(){ctrl.abort();},ms);
+    opts=opts||{};
+    opts.signal=ctrl.signal;
+    return fetch(url,opts).then(function(r){clearTimeout(id);return r;},function(e){
+      clearTimeout(id);
+      if(e&&e.name==='AbortError')throw new Error('TIMEOUT');
+      throw e;
+    });
+  }
   function translateFormal(text,from,to){
     var lp=from==='zh'?'zh-CN|en':'en|zh-CN';
-    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp)
+    return fetchWithTimeout('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp,{},10000)
       .then(function(r){if(!r.ok)throw new Error('net');return r.json();})
       .then(function(j){
         var t=j&&j.responseData&&j.responseData.translatedText;
         if(!t||/MYMEMORY WARNING/i.test(t))throw new Error('quota');
         return t;
       })
-      .catch(function(){
+      .catch(function(e){
+        if(e&&e.message==='TIMEOUT')throw new Error('免费翻译接口超时（国内网络常被拦截）。建议去 ⚙ 配置国内 LLM（如 DeepSeek）作备用');
         var cfg=getLLM();
         if(cfg.key){
           var sys=from==='zh'
@@ -236,18 +249,18 @@
             :'将文本翻译成通顺、正式的中文（简体）。只输出译文。';
           return translateLLM(text,sys);
         }
-        throw new Error('免费翻译额度用尽或未联网，可配置 LLM Key 后重试');
+        throw new Error('免费翻译接口不可用（未联网或被拦截），请去 ⚙ 配置国内 LLM（如 DeepSeek）');
       });
   }
   function translateLLM(text,sys){
     var cfg=getLLM();
-    if(!cfg.key)throw new Error('未配置 LLM Key，请点右上角 ⚙ 设置');
+    if(!cfg.key)throw new Error('未配置 LLM Key，请点右上角 ⚙ 设置（推荐 DeepSeek 等国内接口，速度快）');
     var base=(cfg.base||'https://api.openai.com/v1').replace(/\/+$/,'');
-    return fetch(base+'/chat/completions',{
+    return fetchWithTimeout(base+'/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
       body:JSON.stringify({model:cfg.model||'gpt-4o-mini',messages:[{role:'system',content:sys},{role:'user',content:text}],temperature:0.7})
-    }).then(function(r){
+    },30000).then(function(r){
       if(!r.ok){return r.text().then(function(t){throw new Error('LLM '+r.status+': '+t.slice(0,180))})}
       return r.json();
     }).then(function(j){
@@ -255,6 +268,9 @@
       t=t?t.trim():'';
       if(!t)throw new Error('LLM 返回为空');
       return t;
+    }).catch(function(e){
+      if(e&&e.message==='TIMEOUT')throw new Error('LLM 请求超时：接口太慢或被拦截，建议改用国内接口（如 DeepSeek）');
+      throw e;
     });
   }
   function doTranslate(text){
@@ -285,14 +301,25 @@
     var acts=document.createElement('div');acts.className='bot-actions';
     var cp=document.createElement('button');cp.textContent='复制';
     var sh=document.createElement('button');sh.textContent='分享';
-    acts.appendChild(cp);acts.appendChild(sh);
+    var rp=document.createElement('button');rp.textContent='重试';rp.style.display='none';
+    acts.appendChild(cp);acts.appendChild(sh);acts.appendChild(rp);
     wrap.appendChild(m);wrap.appendChild(row);wrap.appendChild(acts);
     chat.appendChild(wrap);
     scrollBottom();
-    return {b:b,cp:cp,sh:sh,wrap:wrap};
+    return {b:b,cp:cp,sh:sh,rp:rp,wrap:wrap};
   }
   function scrollBottom(){chat.scrollTop=chat.scrollHeight;}
 
+  function runTranslate(text,ui,botRec){
+    ui.b.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+    ui.b.style.color='';
+    ui.rp.style.display='none';
+    doTranslate(text).then(function(res){
+      ui.b.textContent=res;ui.b.style.color='';botRec.text=res;saveHist(hist);bindActions(ui,res);
+    }).catch(function(err){
+      ui.b.textContent='⚠ '+err.message;ui.b.style.color='#ff3b30';ui.rp.style.display='inline-block';
+    }).then(scrollBottom);
+  }
   function sendText(){
     var text=input.value.trim();
     if(!text)return;
@@ -300,18 +327,11 @@
     addUserBubble(text);
     var ui=addBotBubble(meta);
     input.value='';autoGrow();send.disabled=true;
-
-    var hist=loadHist();
     hist.push({role:'user',text:text,ts:Date.now()});
     var botRec={role:'bot',text:'',meta:meta,ts:Date.now()};
-    hist.push(botRec);
-
-    doTranslate(text).then(function(res){
-      ui.b.textContent=res;botRec.text=res;saveHist(hist);
-      bindActions(ui,res);
-    }).catch(function(err){
-      ui.b.textContent='⚠ '+err.message;ui.b.style.color='#ff3b30';
-    }).then(scrollBottom);
+    hist.push(botRec);saveHist(hist);
+    ui.rp.onclick=function(){runTranslate(text,ui,botRec);};
+    runTranslate(text,ui,botRec);
   }
 
   function bindActions(ui,text){
@@ -327,7 +347,6 @@
 
   /* ---------- restore history ---------- */
   function restore(){
-    var hist=loadHist();
     if(!hist.length){return;}
     empty.style.display='none';
     hist.forEach(function(item){
